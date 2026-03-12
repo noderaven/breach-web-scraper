@@ -1,0 +1,3 @@
+# Reduce noisy content conflicts for append-only documentation-style files.
+README.md merge=union
+*.md merge=union
