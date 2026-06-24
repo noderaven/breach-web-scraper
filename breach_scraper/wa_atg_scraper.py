@@ -1,7 +1,8 @@
 """Scraper for Washington Attorney General breach notifications.
 
 This module fetches the WA AG data breach page, extracts the breach table,
-normalizes the records, and can emit JSON/CSV/Markdown output.
+normalizes the records, and can emit JSON/CSV/Markdown output. It also supports
+an offline mode that parses a previously saved copy of the page.
 """
 
 from __future__ import annotations
@@ -11,14 +12,23 @@ import csv
 import json
 import re
 import sys
+import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Iterable
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 DEFAULT_URL = "https://www.atg.wa.gov/data-breach-notifications"
+
+# The WA AG site returns HTTP 403 for clients that do not look like a browser,
+# so a browser-like User-Agent is the default; override it with --user-agent.
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 
 
 def _clean_text(value: str) -> str:
@@ -101,7 +111,12 @@ class _ATGBreachTableParser(HTMLParser):
                     self.tables.append(self.current_table)
             return
 
-        if tag in {"th", "td"} and self.in_cell and self.current_cell and self.current_cell_tag == tag:
+        if (
+            tag in {"th", "td"}
+            and self.in_cell
+            and self.current_cell
+            and self.current_cell_tag == tag
+        ):
             self.current_row.append((tag, self.current_cell))
             self.in_cell = False
             self.current_cell_tag = None
@@ -111,7 +126,8 @@ class _ATGBreachTableParser(HTMLParser):
         if tag == "tr" and self.in_row:
             self.in_row = False
             if self.current_row:
-                row_type = "header" if all(cell_tag == "th" for cell_tag, _ in self.current_row) else "data"
+                is_header = all(cell_tag == "th" for cell_tag, _ in self.current_row)
+                row_type = "header" if is_header else "data"
                 self.current_table.append((row_type, self.current_row))
 
     def handle_data(self, data: str) -> None:
@@ -119,17 +135,48 @@ class _ATGBreachTableParser(HTMLParser):
             self.current_cell.add_text(data)
 
 
-def fetch_html(url: str = DEFAULT_URL, timeout: int = 30) -> str:
+def fetch_html(
+    url: str = DEFAULT_URL,
+    *,
+    timeout: int = 30,
+    retries: int = 3,
+    backoff: float = 0.5,
+    user_agent: str | None = None,
+) -> str:
+    """Fetch page HTML, retrying transient errors with exponential backoff."""
     request = Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (compatible; breach-web-scraper/1.0; +https://example.com)",
-            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": user_agent or DEFAULT_USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
     )
-    with urlopen(request, timeout=timeout) as response:  # nosec B310 - expected for HTTP fetch
-        content_type = response.headers.get_content_charset() or "utf-8"
-        return response.read().decode(content_type, errors="replace")
+    attempts = max(1, retries)
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            with urlopen(request, timeout=timeout) as response:  # nosec B310 - expected HTTP(S) fetch
+                charset = response.headers.get_content_charset() or "utf-8"
+                return response.read().decode(charset, errors="replace")
+        except HTTPError as exc:
+            if exc.code == 403:
+                raise RuntimeError(
+                    "Request blocked with HTTP 403. This source may require "
+                    "browser-like access from your network. Try: (1) run with "
+                    "--input-html using a saved copy of the page, (2) run from a "
+                    "different network, or (3) pass a different --user-agent."
+                ) from exc
+            if 500 <= exc.code < 600:
+                last_error = exc
+            else:
+                raise RuntimeError(f"Failed to fetch source page: HTTP {exc.code}.") from exc
+        except (URLError, TimeoutError) as exc:
+            last_error = exc
+        if attempt < attempts - 1:
+            time.sleep(backoff * (2**attempt))
+    raise RuntimeError(
+        f"Failed to fetch source page after {attempts} attempt(s): {last_error}"
+    ) from last_error
 
 
 def parse_breach_table(html: str, base_url: str = DEFAULT_URL) -> list[dict[str, str]]:
@@ -212,18 +259,33 @@ def write_output(records: list[dict[str, str]], output_format: str, out_file: st
 def main(argv: list[str] | None = None) -> int:
     arg_parser = argparse.ArgumentParser(description="Scrape WA ATG breach notifications table.")
     arg_parser.add_argument("--url", default=DEFAULT_URL, help="Source page URL.")
+    arg_parser.add_argument(
+        "--input-html",
+        help="Path to a previously saved HTML page (offline mode; --url is ignored).",
+    )
+    arg_parser.add_argument("--user-agent", help="Override the request User-Agent header.")
+    arg_parser.add_argument(
+        "--retries", type=int, default=3, help="Max fetch attempts on transient errors."
+    )
     arg_parser.add_argument("--output", choices=["json", "csv", "markdown"], default="json")
     arg_parser.add_argument("--out-file", help="Optional output file path.")
     arg_parser.add_argument("--limit", type=int, default=0, help="Optional max records to output.")
     args = arg_parser.parse_args(argv)
 
-    html = fetch_html(args.url)
-    records = parse_breach_table(html, base_url=args.url)
+    try:
+        if args.input_html:
+            html = Path(args.input_html).read_text(encoding="utf-8")
+        else:
+            html = fetch_html(args.url, retries=args.retries, user_agent=args.user_agent)
+        records = parse_breach_table(html, base_url=args.url)
 
-    if args.limit and args.limit > 0:
-        records = records[: args.limit]
+        if args.limit and args.limit > 0:
+            records = records[: args.limit]
 
-    write_output(records, output_format=args.output, out_file=args.out_file)
+        write_output(records, output_format=args.output, out_file=args.out_file)
+    except (RuntimeError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
