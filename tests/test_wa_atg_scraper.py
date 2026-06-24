@@ -39,7 +39,9 @@ class _FakeResponse:
 class TestParsing(unittest.TestCase):
     def test_parse_breach_table_extracts_rows_and_links(self) -> None:
         html = FIXTURE.read_text(encoding="utf-8")
-        records = parse_breach_table(html, base_url="https://www.atg.wa.gov/data-breach-notifications")
+        records = parse_breach_table(
+            html, base_url="https://www.atg.wa.gov/data-breach-notifications"
+        )
         self.assertEqual(len(records), 2)
         self.assertEqual(records[0]["date_reported"], "2024-06-01")
         self.assertEqual(records[0]["organization_name"], "Acme Corp")
@@ -106,7 +108,9 @@ class TestMainCli(unittest.TestCase):
         self.assertIn("2024-06-01,Acme Corp", output)
 
     def test_limit_truncates(self) -> None:
-        rc, output, _ = self._run(["--input-html", str(FIXTURE), "--output", "json", "--limit", "1"])
+        rc, output, _ = self._run(
+            ["--input-html", str(FIXTURE), "--output", "json", "--limit", "1"]
+        )
         self.assertEqual(rc, 0)
         self.assertEqual(len(json.loads(output)), 1)
 
