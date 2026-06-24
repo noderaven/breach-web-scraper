@@ -155,9 +155,11 @@ def fetch_html(
     last_error: Exception | None = None
     for attempt in range(attempts):
         try:
-            with urlopen(request, timeout=timeout) as response:  # nosec B310 - expected HTTP(S) fetch
+            # urlopen here targets a vetted HTTP(S) URL, which is the intended use.
+            with urlopen(request, timeout=timeout) as response:  # nosec B310
                 charset = response.headers.get_content_charset() or "utf-8"
-                return response.read().decode(charset, errors="replace")
+                body: bytes = response.read()
+                return body.decode(charset, errors="replace")
         except HTTPError as exc:
             if exc.code == 403:
                 raise RuntimeError(
