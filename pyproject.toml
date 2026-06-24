@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "breach-web-scraper"
+version = "0.1.0"
+description = "A Python tool for scraping breach websites to provide a nice summary."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "noderaven" }]
+keywords = ["breach", "scraper", "security", "washington", "data-breach"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/noderaven/breach-web-scraper"
+Repository = "https://github.com/noderaven/breach-web-scraper"
+
+[project.scripts]
+breach-scraper = "breach_scraper.wa_atg_scraper:main"
+
+[project.optional-dependencies]
+dev = ["ruff>=0.5", "mypy>=1.10", "bandit>=1.7"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["breach_scraper"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["breach_scraper"]
