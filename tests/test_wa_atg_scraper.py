@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from scraper.wa_atg_scraper import parse_breach_table, to_markdown
+from breach_scraper.wa_atg_scraper import parse_breach_table, to_markdown
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "wa_atg_sample.html"
