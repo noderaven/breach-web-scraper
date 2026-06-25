@@ -4,9 +4,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-A Python tool for scraping breach websites to provide a nice summary. The first
-supported source is the Washington State Attorney General data breach
-notifications page. Runtime dependencies: none (standard library only).
+A Python tool for scraping breach-notification websites and combining them into a
+single summary. Runtime dependencies: none (standard library only).
+
+## Sources
+
+| Key | Source |
+| --- | --- |
+| `wa_atg` | Washington Attorney General |
+| `ca_oag` | California Attorney General |
+| `or_doj` | Oregon Department of Justice |
+| `maine_ag` | Maine Attorney General |
+| `hhs_ocr` | HHS OCR Breach Portal (federal) |
+
+List them anytime with `breach-scraper --list-sources`.
 
 ## Install
 
@@ -19,28 +30,44 @@ This installs the `breach-scraper` console command.
 ## Usage
 
 ```bash
-# Fetch live and print JSON (default), limited to 10 rows
-breach-scraper --output json --limit 10
+# Combine all sources for the last 6 months (default), as JSON
+breach-scraper
 
-# Markdown / CSV to a file
-breach-scraper --output markdown --out-file wa_breaches.md
-breach-scraper --output csv --out-file wa_breaches.csv
+# A single source, an explicit date range, Markdown to a file
+breach-scraper --source wa_atg --start-date 2025-01-01 --end-date 2025-06-30 \
+  --output markdown --out-file breaches.md
 
-# Offline: parse a previously saved page (no network)
-breach-scraper --input-html saved_page.html --output json
+# A readable text summary, or a self-contained sortable HTML dashboard
+breach-scraper --source ca_oag --output report
+breach-scraper --output html --out-file breaches.html
 
-# Override the User-Agent or retry count
-breach-scraper --user-agent "my-agent/1.0" --retries 5
+# Offline: parse a previously saved page for one source (no network)
+breach-scraper --source wa_atg --input-html saved_page.html
+
+# Override the User-Agent / retry count; fail hard if any source errors
+breach-scraper --user-agent "my-agent/1.0" --retries 5 --strict --verbose
 ```
 
-If the source returns HTTP 403, the tool prints an actionable message; use
-`--input-html` with a saved copy of the page, a different network, or a
-different `--user-agent`.
+### Options
 
-## Output fields
+- `--source KEY` (repeatable): limit to specific sources. Default: all.
+- `--list-sources`: print supported source keys and exit.
+- `--start-date` / `--end-date` (`YYYY-MM-DD`): inclusive date window. Default: last 6 months.
+- `--output {json,csv,markdown,report,html}`: output format. Default: `json`.
+- `--out-file PATH`: write output to a file instead of stdout.
+- `--input-html PATH`: parse a saved page offline (requires exactly one `--source`).
+- `--user-agent STR`, `--retries N`: request tuning.
+- `--include-undated`: keep records with no parseable date.
+- `--strict`: exit non-zero if any source fails. `--verbose`: per-source progress on stderr.
 
-Column names from the HTML table are normalized to `snake_case`. Cells that
-contain links also emit a `<column>_url` field.
+If a source returns HTTP 403, the tool prints an actionable message; use
+`--input-html` with a saved copy, a different network, or a different `--user-agent`.
+
+## Output formats
+
+- `json` / `csv` / `markdown`: the combined records (column names normalized to `snake_case`).
+- `report`: a text summary with totals plus per-notice detail.
+- `html`: a self-contained, sortable web dashboard (no external assets).
 
 ## Development
 
@@ -53,8 +80,11 @@ bandit -r breach_scraper
 python -m unittest discover -s tests -v
 ```
 
-## Source / maintenance notes
+## Notes
 
-- Source URL: `https://www.atg.wa.gov/data-breach-notifications`
-- The scraper depends on the page exposing a parseable HTML table; if the WA AG
-  changes the table structure or field names, parsing may need updates.
+- Standard library only at runtime; sources fetch through a shared HTTP helper with
+  retries, exponential backoff, and helpful HTTP 403 handling.
+- Each source exposes `DEFAULT_URL`, `fetch_html`, and `parse_breach_table`, registered in
+  `breach_scraper/registry.py`. Adding a source is a small, self-contained module.
+- Scraping depends on the upstream pages' structure; if a site changes, that source's
+  parser may need updates.

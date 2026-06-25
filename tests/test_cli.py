@@ -72,6 +72,24 @@ class TestCliOffline(unittest.TestCase):
         self.assertNotIn("\r", out)
         self.assertIn("date_reported,organization_name", out)
 
+    def test_report_output(self) -> None:
+        rc, out, _ = run(
+            ["--input-html", str(FIXTURE), "--source", "wa_atg", "--output", "report", *RANGE]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("## Summary", out)
+        self.assertIn("Total breach notices reviewed: 2", out)
+
+    def test_html_output_is_ascii_and_sortable(self) -> None:
+        rc, out, _ = run(
+            ["--input-html", str(FIXTURE), "--source", "wa_atg", "--output", "html", *RANGE]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("<table", out)
+        self.assertIn("sort-button", out)
+        self.assertIn("Acme Corp", out)
+        self.assertTrue(out.isascii())
+
 
 class TestCliOnline(unittest.TestCase):
     @mock.patch("breach_scraper.http.urlopen")
