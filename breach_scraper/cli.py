@@ -230,7 +230,6 @@ def scrape_all_sources(
     retries: int = 3,
 ) -> list[dict[str, Any]]:
     combined: list[dict[str, Any]] = []
-    failures: list[str] = []
     for source in _selected_sources(source_keys):
         try:
             LOGGER.info("Fetching source %s", source.key)
@@ -254,14 +253,9 @@ def scrape_all_sources(
             )
             combined.extend(_annotate_record(record, source) for record in filtered_records)
         except Exception as exc:
-            message = f"source {source.key} failed: {exc}"
-            failures.append(message)
-            LOGGER.error(message)
             if strict:
-                raise SourceRunError(message) from exc
-
-    if failures and not combined and strict:
-        raise SourceRunError("; ".join(failures))
+                raise SourceRunError(f"source {source.key} failed: {exc}") from exc
+            LOGGER.error("source %s failed: %s", source.key, exc)
 
     return _sort_records(combined)
 

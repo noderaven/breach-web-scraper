@@ -87,6 +87,10 @@ class TestFetchUrl(unittest.TestCase):
         self.assertEqual(result, "ok")
         self.assertEqual(mock_urlopen.call_count, 2)
 
+    def test_empty_candidates_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            fetch_url([])
+
 
 if __name__ == "__main__":
     unittest.main()

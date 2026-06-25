@@ -60,6 +60,12 @@ class TestCliOffline(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out), [])
 
+    def test_offline_csv_has_unix_line_endings(self) -> None:
+        rc, out, _ = run(["--input-html", str(FIXTURE), "--output", "csv", *RANGE])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("\r", out)
+        self.assertIn("date_reported,organization_name", out)
+
 
 class TestCliOnline(unittest.TestCase):
     @mock.patch("breach_scraper.http.urlopen")
