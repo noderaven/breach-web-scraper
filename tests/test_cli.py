@@ -39,7 +39,9 @@ class _FakeResponse:
 
 class TestCliOffline(unittest.TestCase):
     def test_offline_json_annotates_source(self) -> None:
-        rc, out, _ = run(["--input-html", str(FIXTURE), "--output", "json", *RANGE])
+        rc, out, _ = run(
+            ["--input-html", str(FIXTURE), "--source", "wa_atg", "--output", "json", *RANGE]
+        )
         self.assertEqual(rc, 0)
         data = json.loads(out)
         self.assertEqual(len(data), 2)
@@ -50,18 +52,22 @@ class TestCliOffline(unittest.TestCase):
         )
 
     def test_offline_markdown_header(self) -> None:
-        rc, out, _ = run(["--input-html", str(FIXTURE), "--output", "markdown", *RANGE])
+        rc, out, _ = run(
+            ["--input-html", str(FIXTURE), "--source", "wa_atg", "--output", "markdown", *RANGE]
+        )
         self.assertEqual(rc, 0)
         self.assertIn("| Source | Date Reported | Organization Name", out)
 
     def test_default_window_filters_old_records(self) -> None:
         # Default range is the last 6 months; the 2024 fixture rows fall outside it.
-        rc, out, _ = run(["--input-html", str(FIXTURE), "--output", "json"])
+        rc, out, _ = run(["--input-html", str(FIXTURE), "--source", "wa_atg", "--output", "json"])
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out), [])
 
     def test_offline_csv_has_unix_line_endings(self) -> None:
-        rc, out, _ = run(["--input-html", str(FIXTURE), "--output", "csv", *RANGE])
+        rc, out, _ = run(
+            ["--input-html", str(FIXTURE), "--source", "wa_atg", "--output", "csv", *RANGE]
+        )
         self.assertEqual(rc, 0)
         self.assertNotIn("\r", out)
         self.assertIn("date_reported,organization_name", out)
@@ -71,7 +77,7 @@ class TestCliOnline(unittest.TestCase):
     @mock.patch("breach_scraper.http.urlopen")
     def test_online_pipeline(self, mock_urlopen: mock.Mock) -> None:
         mock_urlopen.return_value = _FakeResponse(FIXTURE.read_bytes())
-        rc, out, _ = run(["--output", "json", *RANGE])
+        rc, out, _ = run(["--source", "wa_atg", "--output", "json", *RANGE])
         self.assertEqual(rc, 0)
         self.assertEqual(len(json.loads(out)), 2)
 
@@ -80,7 +86,8 @@ class TestCliMisc(unittest.TestCase):
     def test_list_sources(self) -> None:
         rc, out, _ = run(["--list-sources"])
         self.assertEqual(rc, 0)
-        self.assertIn("wa_atg", out)
+        for key in ("wa_atg", "ca_oag", "or_doj", "maine_ag", "hhs_ocr"):
+            self.assertIn(key, out)
 
     def test_unknown_source_errors(self) -> None:
         rc, _, err = run(["--source", "nope", *RANGE])
