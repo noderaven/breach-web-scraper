@@ -215,8 +215,20 @@ def _html_source_metadata(
     return source_key, source_name
 
 
+def _is_safe_url(url: str) -> bool:
+    try:
+        return urlparse(url).scheme in ("http", "https")
+    except ValueError:
+        return False
+
+
+def _safe_notice_url(row: Row) -> str:
+    url = str(row.get("notice_url", "") or row.get("organization_name_url", "") or "").strip()
+    return url if _is_safe_url(url) else ""
+
+
 def _html_notice_link(row: Row) -> str:
-    notice_url = str(row.get("notice_url", "") or row.get("organization_name_url", "") or "")
+    notice_url = _safe_notice_url(row)
     if not notice_url:
         return ""
     return (
@@ -240,9 +252,9 @@ def _html_source_link(row: Row, source_name: str) -> str:
 
 def _html_organization_link(row: Row) -> str:
     organization_name = str(row.get("organization_name", "") or "Unknown organization")
-    organization_url = str(row.get("organization_name_url", "") or "")
+    organization_url = str(row.get("organization_name_url", "") or "").strip()
     safe_name = html.escape(organization_name)
-    if not organization_url:
+    if not _is_safe_url(organization_url):
         return safe_name
     return (
         f'<a href="{html.escape(organization_url, quote=True)}" target="_blank" rel="noopener noreferrer">'
@@ -275,13 +287,16 @@ def _html_reported_date(row: Row) -> str:
 
 
 def _html_affected_count(row: Row) -> str:
-    return str(
-        row.get("persons_affected", "")
-        or row.get("total_persons_affected", "")
-        or row.get("number_affected", "")
-        or row.get("individuals_affected", "")
-        or ""
-    )
+    for key in (
+        "persons_affected",
+        "total_persons_affected",
+        "number_affected",
+        "individuals_affected",
+    ):
+        value = row.get(key)
+        if value is not None and value != "":
+            return str(value)
+    return ""
 
 
 def to_html(
@@ -356,7 +371,7 @@ def to_html(
             f'data-sort-date_of_breach="{html.escape(_date_sort_key(breach_display), quote=True)}" '
             f'data-sort-affected="{affected_numeric if affected_numeric is not None else 0}" '
             f'data-sort-information="{html.escape(str(row.get("information_compromised", "") or "").casefold(), quote=True)}" '
-            f'data-sort-notice="{html.escape(str(row.get("notice_url", "") or row.get("organization_name_url", "") or ""), quote=True)}"'
+            f'data-sort-notice="{html.escape(_safe_notice_url(row), quote=True)}"'
             f">"
             f'<td class="source-cell">{_html_source_link(row, source_name)}</td>'
             f"<td>{html.escape(reported_display or 'Unknown')}</td>"
@@ -963,10 +978,7 @@ def to_report(
         lines.append(f"### {idx}. {name}")
         lines.append(f"- Date reported: {row.get('date_reported', '') or 'Unknown'}")
         lines.append(f"- Date of breach: {row.get('date_of_breach', '') or 'Unknown'}")
-        lines.append(
-            "- Persons affected: "
-            f"{row.get('persons_affected', '') or row.get('total_persons_affected', '') or row.get('number_affected', '') or row.get('individuals_affected', '') or 'Unknown'}"
-        )
+        lines.append(f"- Persons affected: {_html_affected_count(row) or 'Unknown'}")
         lines.append(
             f"- Information compromised: {row.get('information_compromised', '') or 'Not listed'}"
         )
