@@ -31,7 +31,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Scrape and combine breach notification data from supported sources."
     )
-    parser.add_argument("--output", choices=["json", "csv", "markdown"], default="json")
+    parser.add_argument(
+        "--output", choices=["json", "csv", "markdown", "report", "html"], default="json"
+    )
     parser.add_argument("--out-file", help="Optional output file path.")
     parser.add_argument(
         "--start-date",

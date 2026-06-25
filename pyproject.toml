@@ -41,6 +41,8 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 [tool.ruff.lint.per-file-ignores]
 # Test fixtures embed long inline HTML/CSV sample strings.
 "tests/**" = ["E501"]
+# output.py embeds an HTML/CSS/JS web-UI template with unavoidably long lines.
+"breach_scraper/output.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
