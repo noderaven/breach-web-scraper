@@ -41,6 +41,9 @@ def fetch_url(
     (capped at 30s). HTTP 403 raises an actionable error; other 4xx are not
     retried and fall through to the next candidate.
     """
+    if not candidates:
+        raise ValueError("At least one candidate URL must be provided.")
+
     request_headers = {"User-Agent": user_agent or DEFAULT_USER_AGENT, **DEFAULT_HEADERS}
     if headers:
         request_headers.update(headers)

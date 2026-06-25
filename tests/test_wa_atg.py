@@ -28,6 +28,10 @@ class TestWaAtg(unittest.TestCase):
         self.assertEqual(out["date_reported"], "2024-06-01")
         self.assertEqual(out["number_of_washingtonians_affected"], "1,234")
 
+    def test_normalize_count_keeps_ranges_intact(self) -> None:
+        out = normalize_record({"number_of_washingtonians_affected": "1,200 - 1,500"})
+        self.assertEqual(out["number_of_washingtonians_affected"], "1,200 - 1,500")
+
 
 if __name__ == "__main__":
     unittest.main()

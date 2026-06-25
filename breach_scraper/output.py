@@ -102,7 +102,7 @@ def _to_csv(records: list[dict[str, Any]]) -> str:
             if key not in columns:
                 columns.append(key)
     buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=columns)
+    writer = csv.DictWriter(buffer, fieldnames=columns, lineterminator="\n")
     writer.writeheader()
     writer.writerows(records)
     return buffer.getvalue()

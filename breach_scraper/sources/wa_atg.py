@@ -48,10 +48,10 @@ def _normalize_count(value: str) -> str:
     cleaned = _clean_text(value)
     if not cleaned:
         return ""
-    digits = re.sub(r"[^\d]", "", cleaned)
-    if not digits:
-        return cleaned
-    return f"{int(digits):,}"
+    no_commas = cleaned.replace(",", "")
+    if no_commas.isdigit():
+        return f"{int(no_commas):,}"
+    return cleaned
 
 
 def _field_sort_key(item: tuple[str, str]) -> tuple[int, int | str]:
