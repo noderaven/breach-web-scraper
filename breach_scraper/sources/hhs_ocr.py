@@ -47,7 +47,10 @@ def _normalize_date(value: str) -> str:
     cleaned = _clean_text(value)
     if not cleaned:
         return ""
-    return datetime.strptime(cleaned, "%m/%d/%Y").date().isoformat()
+    try:
+        return datetime.strptime(cleaned, "%m/%d/%Y").date().isoformat()
+    except ValueError:
+        return cleaned
 
 
 def _normalize_count(value: str) -> str:
@@ -217,7 +220,10 @@ def fetch_html(
         export_request = Request(
             url,
             data=data,
-            headers={**_build_headers(), "Content-Type": "application/x-www-form-urlencoded"},
+            headers={
+                **_build_headers(user_agent),
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
         )
         with opener.open(export_request, timeout=timeout) as response:  # nosec B310
             charset = response.headers.get_content_charset() or "utf-8"
@@ -228,7 +234,8 @@ def fetch_html(
 
 
 def _parse_csv_export(text: str) -> list[dict[str, str]]:
-    if not text.lstrip().startswith('"'):
+    cleaned = text.lstrip()
+    if cleaned.startswith("<") or "Covered Entity Type" not in cleaned:
         return []
 
     rows = list(csv.reader(io.StringIO(text)))

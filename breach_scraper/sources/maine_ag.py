@@ -411,6 +411,8 @@ class _MaineAGDetailParser(HTMLParser):
             text = item.text
             if self.item_stack:
                 self.item_stack[-1].add_child_text(text)
+                if item.href and not self.item_stack[-1].href:
+                    self.item_stack[-1].href = item.href
             elif text:
                 self.items.append((self.current_section, text, item.href))
 

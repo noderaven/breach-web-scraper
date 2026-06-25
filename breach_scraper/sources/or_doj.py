@@ -48,7 +48,10 @@ def _normalize_single_date(value: str) -> str:
     cleaned = _clean_text(value)
     if not cleaned or cleaned in SENTINEL_DATES:
         return ""
-    return datetime.strptime(cleaned, "%m/%d/%Y").date().isoformat()
+    try:
+        return datetime.strptime(cleaned, "%m/%d/%Y").date().isoformat()
+    except ValueError:
+        return cleaned
 
 
 def _normalize_dateish(value: str) -> str:
@@ -61,8 +64,8 @@ def _normalize_dateish(value: str) -> str:
         if not part:
             continue
 
-        if " - " in part:
-            range_parts = [_normalize_single_date(item) for item in part.split(" - ")]
+        if "-" in part:
+            range_parts = [_normalize_single_date(item) for item in re.split(r"\s*-\s*", part)]
             range_parts = [item for item in range_parts if item]
             if range_parts:
                 normalized_parts.append(" to ".join(range_parts))
