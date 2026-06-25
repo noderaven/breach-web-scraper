@@ -1,6 +1,6 @@
 import unittest
 
-from breach_scraper.sources.hhs_ocr import parse_breach_table
+from breach_scraper.sources.hhs_ocr import _parse_csv_export, parse_breach_table
 
 HHS_HTML = """
 <html>
@@ -57,6 +57,14 @@ class TestHhsOcrScraper(unittest.TestCase):
             "Manhattan Retirement Foundation d/b/a Meadowlark Hills",
         )
         self.assertEqual(records[0]["individuals_affected"], "14,442")
+
+
+class TestHhsCsvDetection(unittest.TestCase):
+    def test_html_is_not_treated_as_csv(self) -> None:
+        self.assertEqual(_parse_csv_export("  <html><body>nope</body></html>"), [])
+
+    def test_csv_without_known_header_is_rejected(self) -> None:
+        self.assertEqual(_parse_csv_export('"a","b"\n"1","2"\n'), [])
 
 
 if __name__ == "__main__":

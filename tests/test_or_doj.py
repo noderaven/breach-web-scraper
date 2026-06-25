@@ -1,6 +1,6 @@
 import unittest
 
-from breach_scraper.sources.or_doj import parse_breach_table
+from breach_scraper.sources.or_doj import _normalize_dateish, parse_breach_table
 
 OREGON_HTML = """
 <html>
@@ -98,6 +98,14 @@ class TestOregonDojScraper(unittest.TestCase):
         )
         self.assertEqual(records[0]["date_notice_sent"], "2025-10-29, 2026-02-25")
         self.assertEqual(records[0]["number_affected"], "139,899")
+
+
+class TestOrDojDateNormalization(unittest.TestCase):
+    def test_tight_range_is_split(self) -> None:
+        self.assertEqual(_normalize_dateish("8/13/2025-8/14/2025"), "2025-08-13 to 2025-08-14")
+
+    def test_invalid_date_returns_original(self) -> None:
+        self.assertEqual(_normalize_dateish("13/45/2025"), "13/45/2025")
 
 
 if __name__ == "__main__":
