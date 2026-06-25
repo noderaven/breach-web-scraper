@@ -16,6 +16,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
@@ -159,7 +160,11 @@ def fetch_html(
             with urlopen(request, timeout=timeout) as response:  # nosec B310
                 charset = response.headers.get_content_charset() or "utf-8"
                 body: bytes = response.read()
-                return body.decode(charset, errors="replace")
+                try:
+                    return body.decode(charset, errors="replace")
+                except LookupError:
+                    # Server advertised an unknown charset; fall back to UTF-8.
+                    return body.decode("utf-8", errors="replace")
         except HTTPError as exc:
             if exc.code == 403:
                 raise RuntimeError(
@@ -172,10 +177,10 @@ def fetch_html(
                 last_error = exc
             else:
                 raise RuntimeError(f"Failed to fetch source page: HTTP {exc.code}.") from exc
-        except (URLError, TimeoutError) as exc:
+        except (URLError, TimeoutError, HTTPException) as exc:
             last_error = exc
         if attempt < attempts - 1:
-            time.sleep(backoff * (2**attempt))
+            time.sleep(min(backoff * (2**attempt), 30.0))
     raise RuntimeError(
         f"Failed to fetch source page after {attempts} attempt(s): {last_error}"
     ) from last_error
@@ -285,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
             records = records[: args.limit]
 
         write_output(records, output_format=args.output, out_file=args.out_file)
-    except (RuntimeError, OSError) as exc:
+    except (RuntimeError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return 0

@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from http.client import BadStatusLine
 from pathlib import Path
 from unittest import mock
 from urllib.error import HTTPError, URLError
@@ -81,6 +82,33 @@ class TestFetchHtml(unittest.TestCase):
         self.assertIn("--input-html", message)
         self.assertEqual(mock_urlopen.call_count, 1)
 
+    @mock.patch("breach_scraper.wa_atg_scraper.time.sleep", return_value=None)
+    @mock.patch("breach_scraper.wa_atg_scraper.urlopen")
+    def test_retries_on_http_protocol_error(
+        self, mock_urlopen: mock.Mock, _sleep: mock.Mock
+    ) -> None:
+        mock_urlopen.side_effect = [BadStatusLine("oops"), _FakeResponse(b"<html>ok</html>")]
+        html = fetch_html("https://example.test", retries=3, backoff=0)
+        self.assertEqual(html, "<html>ok</html>")
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @mock.patch("breach_scraper.wa_atg_scraper.urlopen")
+    def test_unknown_charset_falls_back_to_utf8(self, mock_urlopen: mock.Mock) -> None:
+        mock_urlopen.return_value = _FakeResponse(
+            b"<html>caf\xc3\xa9</html>", charset="bogus-charset"
+        )
+        html = fetch_html("https://example.test", retries=1, backoff=0)
+        self.assertIn("caf", html)
+
+    @mock.patch("breach_scraper.wa_atg_scraper.time.sleep")
+    @mock.patch("breach_scraper.wa_atg_scraper.urlopen")
+    def test_backoff_is_capped(self, mock_urlopen: mock.Mock, mock_sleep: mock.Mock) -> None:
+        mock_urlopen.side_effect = URLError("down")
+        with self.assertRaises(RuntimeError):
+            fetch_html("https://example.test", retries=20, backoff=1.0)
+        max_sleep = max(call.args[0] for call in mock_sleep.call_args_list)
+        self.assertLessEqual(max_sleep, 30.0)
+
 
 class TestMainCli(unittest.TestCase):
     def _run(self, argv: list[str]) -> tuple[int, str, str]:
@@ -116,6 +144,11 @@ class TestMainCli(unittest.TestCase):
 
     def test_missing_input_file_returns_error_code(self) -> None:
         rc, _, err = self._run(["--input-html", "does-not-exist.html"])
+        self.assertEqual(rc, 1)
+        self.assertIn("error:", err)
+
+    def test_malformed_url_returns_error_code(self) -> None:
+        rc, _, err = self._run(["--url", "not a url"])
         self.assertEqual(rc, 1)
         self.assertIn("error:", err)
 
